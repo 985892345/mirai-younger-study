@@ -20,7 +20,6 @@ import net.mamoe.mirai.event.events.MessageEvent
 import net.mamoe.mirai.message.data.Face
 import net.mamoe.mirai.message.data.Image
 import net.mamoe.mirai.message.data.Image.Key.queryUrl
-import net.mamoe.mirai.message.data.Message
 import net.mamoe.mirai.message.data.toPlainText
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -30,11 +29,9 @@ import java.nio.file.Files
 import java.nio.file.StandardOpenOption
 import java.text.SimpleDateFormat
 import java.util.*
-import java.util.concurrent.TimeUnit
 import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
 
-@Suppress("SuspendFunctionOnCoroutineScope")
 class StudyImpl : IStudy {
   
   private var recoverJob: Job? = null
@@ -54,9 +51,11 @@ class StudyImpl : IStudy {
       .apply { mkdirs() }
   }
   
-  override suspend fun CommandSender.onFixLoad() {
+  override fun CommandSender.onFixLoad() {
     Data.reload()
-    sendMessage("Younger-Study 加载成功")
+    launch {
+      sendMessage("Younger-Study 加载成功")
+    }
     recoverJob = launch {
       while (true) {
         val calendar1 = Calendar.getInstance()
@@ -114,14 +113,17 @@ class StudyImpl : IStudy {
     }
   }
   
-  override suspend fun CommandSender.onFixUnload(): Boolean {
+  
+  override fun CommandSender.onFixUnload(): Boolean {
     Data.save()
     recoverJob?.cancel()
     recoverJob = null
     messageJob?.complete()
     messageJob = null
     COSManger.shutDown()
-    sendMessage("Younger-Study 卸载成功")
+    launch {
+      sendMessage("Younger-Study 卸载成功")
+    }
     return true
   }
   
@@ -214,7 +216,7 @@ class StudyImpl : IStudy {
       sendMessage("图片为空！")
       return
     }
-    val zipFile = File(getRootFile().parent, "${getRootFile().name}.zip")
+    val zipFile = getRootFile().parentFile.resolve("${getRootFile().name}.zip")
     withContext(Dispatchers.IO) {
       ZipOutputStream(zipFile.outputStream()).use { zos ->
         rawFile.forEach { file ->

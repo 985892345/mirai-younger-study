@@ -1,28 +1,29 @@
 plugins {
-  val kotlinVersion = "1.6.21"
+  val kotlinVersion = "1.7.10"
   kotlin("jvm") version kotlinVersion
   kotlin("plugin.serialization") version kotlinVersion
   
-  id("net.mamoe.mirai-console") version "2.11.1"
-  id("io.github.985892345.mirai-hotfix") version "1.0"
+  id("net.mamoe.mirai-console") version "2.12.1"
+  
+  id("io.github.985892345.mirai-hotfix") version "1.5.1"
 }
 
 group = "com.ndhzs"
 version = "1.0"
 
 repositories {
-  maven("https://maven.aliyun.com/repository/public")
   mavenCentral()
+  maven("https://maven.aliyun.com/repository/public")
 }
 
 // 这里给全部源集设置依赖
 dependencies {
-  implementation("com.github.985892345:mirai-hotfix:0.1.3")
+  shadowLink("io.github.985892345:mirai-hotfix:1.5.0")
 }
 
 hotfix {
   // 这里用于设置自定义源集并引入依赖
-  createHotfix("hotfix-study") {
+  createHotfix("hotfix") {
     implementation("com.google.code.gson:gson:2.9.0")
     implementation("com.qcloud:cos_api:5.6.73")
   }
