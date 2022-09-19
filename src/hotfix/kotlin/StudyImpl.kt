@@ -13,7 +13,6 @@ import net.mamoe.mirai.contact.Group
 import net.mamoe.mirai.contact.Member
 import net.mamoe.mirai.contact.getMember
 import net.mamoe.mirai.event.GlobalEventChannel
-import net.mamoe.mirai.event.Listener
 import net.mamoe.mirai.event.events.FriendMessageEvent
 import net.mamoe.mirai.event.events.GroupTempMessageEvent
 import net.mamoe.mirai.event.events.MessageEvent
@@ -31,11 +30,18 @@ import java.text.SimpleDateFormat
 import java.util.*
 import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
+import kotlin.random.Random
 
+@Suppress("SuspendFunctionOnCoroutineScope")
 class StudyImpl : IStudy {
   
-  private var recoverJob: Job? = null
-  private var messageJob: Listener<MessageEvent>? = null
+  private val jobList = arrayListOf<Job>()
+  
+  private fun Job.collect(): Job {
+    jobList.add(this)
+    return this
+  }
+  
   private val group: Group?
     get() = Bot.getInstanceOrNull(Bot_id)?.getGroup(Group_id)
   
@@ -56,7 +62,7 @@ class StudyImpl : IStudy {
     launch {
       sendMessage("Younger-Study 加载成功")
     }
-    recoverJob = launch {
+    launch {
       while (true) {
         val calendar1 = Calendar.getInstance()
         val calendar2 = Calendar.getInstance().apply {
@@ -69,14 +75,14 @@ class StudyImpl : IStudy {
           it.value.isSent = false
         }
       }
-    }
-    messageJob = GlobalEventChannel.filter { event ->
+    }.collect()
+    GlobalEventChannel.filter { event ->
       event is GroupTempMessageEvent
         && event.group.id == Group_id
         && Data.stuByIdMap.any { it.value.id == event.sender.id }
         || event is FriendMessageEvent
         && Data.stuByIdMap.any { it.value.id == event.sender.id }
-    }.subscribeAlways {
+    }.subscribeAlways<MessageEvent> {
       val fullName = Data.stuByIdMap.filter {
         it.value.id == sender.id
       }.firstNotNullOfOrNull { it.key }
@@ -104,25 +110,34 @@ class StudyImpl : IStudy {
               if (byte != null) {
                 Files.write(getRootFile().resolve("${fullName}.jpg").toPath(), byte, StandardOpenOption.CREATE)
                 Data.stuByIdMap[fullName]?.isSent = true
-                sender.sendMessage("已收到你的截图，如果发错，可以重发")
+                val list = listOf(
+                  "感谢支持工作".toPlainText() + Face(Face.敬礼),
+                  "感谢大哥发来的截图".toPlainText() + Face(Face.汪汪),
+                  Face(Face.玫瑰),
+                  Face(Face.比心),
+                  Face(Face.拜谢),
+                )
+                sender.sendMessage(list.random())
               }
             }
           }
         }
       }
-    }
+    }.collect()
   }
-  
   
   override fun CommandSender.onFixUnload(): Boolean {
     Data.save()
-    recoverJob?.cancel()
-    recoverJob = null
-    messageJob?.complete()
-    messageJob = null
     COSManger.shutDown()
     launch {
       sendMessage("Younger-Study 卸载成功")
+    }
+    jobList.forEach {
+      if (it is CompletableJob) {
+        it.complete()
+      } else {
+        it.cancel()
+      }
     }
     return true
   }
@@ -181,7 +196,29 @@ class StudyImpl : IStudy {
     sendMessage(joiner.toString())
   }
   
+  private var mInformJob: Job? = null
+  
   override suspend fun CommandSender.informStu(fullName: String?) {
+    if (fullName == "cancel") {
+      if (mInformJob != null) {
+        mInformJob?.cancel()
+        sendMessage("取消通知成功")
+      } else {
+        sendMessage("通知已发完或者未发送过通知")
+      }
+      return
+    }
+    if (mInformJob != null) {
+      sendMessage("上一次通知未结束！")
+      return
+    }
+    val calendar = Calendar.getInstance()
+    val hour = calendar.get(Calendar.HOUR_OF_DAY)
+    val minute = calendar.get(Calendar.MINUTE)
+    if (hour * 60 + minute !in 8 * 60 .. 23 * 60 + 10) {
+      sendMessage("该时段不能通知！")
+      return
+    }
     val informMap = mutableMapOf<String, Member>()
     Data.stuByIdMap.forEach {
       if (!it.value.isSent && it.key.contains(fullName ?: "")) {
@@ -195,14 +232,26 @@ class StudyImpl : IStudy {
     }
     if (informMap.isEmpty()) {
       if (fullName == null) {
-        sendMessage("该人已交")
-      } else {
         sendMessage("已收齐，使用 /younger download 进行下载")
+      } else {
+        sendMessage("该人已交")
       }
     } else {
-      informMap.forEach {
-        it.value.sendMessage("发一下青年大学习截图，谢谢配合".toPlainText() + Face(Face.吃糖))
-      }
+      mInformJob = launch {
+        val list = listOf(
+          "发一下青年大学习截图，谢谢配合".toPlainText() + Face(Face.吃糖),
+          "是时候交青年大学习了，兄弟".toPlainText() + Face(Face.敬礼),
+          "我又来催你交青年大学习了".toPlainText() + Face(Face.小纠结),
+          "交青年大学习了吗".toPlainText() + Face(Face.闭嘴),
+          Face(Face.暗中观察) + "青年大学习截图"
+        )
+        informMap.forEach {
+          it.value.sendMessage(list.random())
+          delay(Random.nextLong(120 * 1000, 360 * 1000))
+        }
+        mInformJob = null
+      }.collect()
+      
       val joiner = StringJoiner("\n")
       joiner.add("已提醒以下人发截图：共${informMap.size}人")
       informMap.forEach { joiner.add(it.key) }
