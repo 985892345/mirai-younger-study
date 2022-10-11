@@ -36,6 +36,11 @@ object COSManger {
     return key
   }
   
+  fun delete(filePath: String) {
+    val deleteObjectRequest = DeleteObjectRequest(bucket.name, filePath)
+    cosClient.deleteObject(deleteObjectRequest)
+  }
+  
   fun list(): ObjectListing? {
     val listObjectsRequest = ListObjectsRequest().apply {
       bucketName = bucket.name

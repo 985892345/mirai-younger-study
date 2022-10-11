@@ -1,6 +1,7 @@
 import com.ndhzs.IStudy
 import com.ndhzs.MiraiYouthCollegeStudy.reload
 import com.ndhzs.MiraiYouthCollegeStudy.save
+import com.ndhzs.hotfix.HotfixKotlinPlugin
 import cos.COSManger
 import kotlinx.coroutines.*
 import net.mamoe.mirai.Bot
@@ -12,14 +13,15 @@ import net.mamoe.mirai.console.rootDir
 import net.mamoe.mirai.contact.Group
 import net.mamoe.mirai.contact.Member
 import net.mamoe.mirai.contact.getMember
-import net.mamoe.mirai.event.GlobalEventChannel
 import net.mamoe.mirai.event.events.FriendMessageEvent
 import net.mamoe.mirai.event.events.GroupTempMessageEvent
 import net.mamoe.mirai.event.events.MessageEvent
+import net.mamoe.mirai.event.globalEventChannel
 import net.mamoe.mirai.message.data.Face
 import net.mamoe.mirai.message.data.Image
 import net.mamoe.mirai.message.data.Image.Key.queryUrl
 import net.mamoe.mirai.message.data.toPlainText
+import net.mamoe.mirai.utils.ExternalResource.Companion.toExternalResource
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import secrect.*
@@ -28,6 +30,7 @@ import java.nio.file.Files
 import java.nio.file.StandardOpenOption
 import java.text.SimpleDateFormat
 import java.util.*
+import java.util.concurrent.TimeUnit
 import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
 import kotlin.random.Random
@@ -45,6 +48,9 @@ class StudyImpl : IStudy {
   private val group: Group?
     get() = Bot.getInstanceOrNull(Bot_id)?.getGroup(Group_id)
   
+  private val managerGroup: Group?
+    get() = Bot.getInstanceOrNull(Bot_id)?.getGroup(ManagerGroup_id)
+  
   private fun getRootFile(): File {
     return MiraiConsole.rootDir
       .resolve("younger-study")
@@ -57,11 +63,9 @@ class StudyImpl : IStudy {
       .apply { mkdirs() }
   }
   
-  override fun CommandSender.onFixLoad() {
+  override suspend fun CommandSender.onFixLoad(plugin: HotfixKotlinPlugin) {
     Data.reload()
-    launch {
-      sendMessage("Younger-Study 加载成功")
-    }
+    sendMessage("Younger-Study 加载成功")
     launch {
       while (true) {
         val calendar1 = Calendar.getInstance()
@@ -76,62 +80,61 @@ class StudyImpl : IStudy {
         }
       }
     }.collect()
-    GlobalEventChannel.filter { event ->
-      event is GroupTempMessageEvent
-        && event.group.id == Group_id
-        && Data.stuByIdMap.any { it.value.id == event.sender.id }
-        || event is FriendMessageEvent
-        && Data.stuByIdMap.any { it.value.id == event.sender.id }
-    }.subscribeAlways<MessageEvent> {
-      val fullName = Data.stuByIdMap.filter {
-        it.value.id == sender.id
-      }.firstNotNullOfOrNull { it.key }
-      if (fullName != null) {
-        val img = message[Image]
-        if (img != null && !img.isEmoji) {
-          val url = img.queryUrl()
-          val client = OkHttpClient.Builder().build()
-          val request: Request = Request.Builder()
-            .url(url)
-            .build()
-          withContext(Dispatchers.IO) {
-            runCatching {
-              client.newCall(request).execute()
-            }.onFailure {
-              it.printStackTrace()
-              bot.getFriend(Manager_id)?.sendMessage(
-                "姓名：${fullName}\n" +
-                  "QQ号：${sender.id}\n" +
-                  "图片下载失败，请手动下载！"
-              )
-              sendMessage(img)
-            }.onSuccess {
-              val byte = it.body?.bytes()
-              if (byte != null) {
-                Files.write(getRootFile().resolve("${fullName}.jpg").toPath(), byte, StandardOpenOption.CREATE)
-                Data.stuByIdMap[fullName]?.isSent = true
-                val list = listOf(
-                  "感谢支持工作".toPlainText() + Face(Face.敬礼),
-                  "感谢大哥发来的截图".toPlainText() + Face(Face.汪汪),
-                  Face(Face.玫瑰),
-                  Face(Face.比心),
-                  Face(Face.拜谢),
+    globalEventChannel()
+      .filter { event ->
+        event is GroupTempMessageEvent
+          && event.group.id == Group_id
+          && Data.stuByIdMap.any { it.value.id == event.sender.id }
+          || event is FriendMessageEvent
+          && Data.stuByIdMap.any { it.value.id == event.sender.id }
+      }.subscribeAlways<MessageEvent> {
+        val fullName = Data.stuByIdMap.filter {
+          it.value.id == sender.id
+        }.firstNotNullOfOrNull { it.key }
+        if (fullName != null) {
+          val img = message[Image]
+          if (img != null && !img.isEmoji) {
+            val url = img.queryUrl()
+            val client = OkHttpClient.Builder().build()
+            val request: Request = Request.Builder()
+              .url(url)
+              .build()
+            withContext(Dispatchers.IO) {
+              runCatching {
+                client.newCall(request).execute()
+              }.onFailure {
+                it.printStackTrace()
+                bot.getFriend(Manager_id)?.sendMessage(
+                  "姓名：${fullName}\n" +
+                    "QQ号：${sender.id}\n" +
+                    "图片下载失败，请手动下载！"
                 )
-                sender.sendMessage(list.random())
+                sendMessage(img)
+              }.onSuccess {
+                val byte = it.body?.bytes()
+                if (byte != null) {
+                  Files.write(getRootFile().resolve("${fullName}.jpg").toPath(), byte, StandardOpenOption.CREATE)
+                  Data.stuByIdMap[fullName]?.isSent = true
+                  val list = listOf(
+                    "感谢支持工作".toPlainText() + Face(Face.敬礼),
+                    "感谢大哥发来的截图".toPlainText() + Face(Face.汪汪),
+                    Face(Face.玫瑰),
+                    Face(Face.比心),
+                    Face(Face.拜谢),
+                  )
+                  sender.sendMessage(list.random())
+                }
               }
             }
           }
         }
-      }
-    }.collect()
+      }.collect()
   }
   
-  override fun CommandSender.onFixUnload(): Boolean {
+  override suspend fun CommandSender.onFixUnload(plugin: HotfixKotlinPlugin): Boolean {
     Data.save()
     COSManger.shutDown()
-    launch {
-      sendMessage("Younger-Study 卸载成功")
-    }
+    sendMessage("Younger-Study 卸载成功")
     jobList.forEach {
       if (it is CompletableJob) {
         it.complete()
@@ -156,11 +159,13 @@ class StudyImpl : IStudy {
         joiner.add("已发截图：${data.size}人")
         data.forEach { joiner.add(it.key) }
       }
+      
       "f", "false" -> {
         val data = Data.stuByIdMap.filter { !it.value.isSent }
         joiner.add("未发截图：${data.size}人")
         data.forEach { joiner.add(it.key) }
       }
+      
       "reset" -> {
         // 重新设置本地数据
         val childFile = getRootFile().listFiles()
@@ -177,6 +182,7 @@ class StudyImpl : IStudy {
           }
         }
       }
+      
       else -> {
         val edList = mutableListOf<String>()
         val noList = mutableListOf<String>()
@@ -215,7 +221,7 @@ class StudyImpl : IStudy {
     val calendar = Calendar.getInstance()
     val hour = calendar.get(Calendar.HOUR_OF_DAY)
     val minute = calendar.get(Calendar.MINUTE)
-    if (hour * 60 + minute !in 8 * 60 .. 23 * 60 + 10) {
+    if (hour * 60 + minute !in 8 * 60..23 * 60 + 10) {
       sendMessage("该时段不能通知！")
       return
     }
@@ -247,7 +253,9 @@ class StudyImpl : IStudy {
         )
         informMap.forEach {
           it.value.sendMessage(list.random())
-          delay(Random.nextLong(120 * 1000, 360 * 1000))
+          if (informMap.size != 1) {
+            delay(Random.nextLong(120 * 1000, 360 * 1000))
+          }
         }
         mInformJob = null
       }.collect()
@@ -259,7 +267,20 @@ class StudyImpl : IStudy {
     }
   }
   
-  override suspend fun CommandSender.downloadZip() {
+  override suspend fun CommandSender.downloadZip(isForce: Boolean) {
+    if (!isForce) {
+      val list = Data.stuByIdMap.mapNotNull { if (it.value.isSent) null else it.key }
+      if (list.isNotEmpty()) {
+        val joiner = StringJoiner("\n")
+        joiner.add("还有人未交，如想强制下载，请输入 /download true")
+        joiner.add("未交名单：")
+        list.forEach {
+          joiner.add(it)
+        }
+        sendMessage(joiner.toString())
+        return
+      }
+    }
     val rawFile = getRootFile().listFiles()
     if (rawFile.isNullOrEmpty()) {
       sendMessage("图片为空！")
@@ -280,8 +301,27 @@ class StudyImpl : IStudy {
           }
         }
       }
-      val filePath = COSManger.upload(zipFile)
-      sendMessage("共有${rawFile.size}份\nZip下载链接：\n${COSManger.getTemporaryUrl(filePath)}")
+      val managerGroup = managerGroup
+      if (managerGroup != null) {
+        sendMessage("上传群文件中，请耐心等待")
+        zipFile.toExternalResource().use {
+          managerGroup.files.root.uploadNewFile(zipFile.name, it)
+        }
+        sendMessage("文件上传成功\n文件名：${zipFile.name.substringBeforeLast(".")}\n请在群文件中查看")
+      } else {
+        sendMessage("未找到文件群，将使用上传 COS 的备用方案")
+        val filePath = COSManger.upload(zipFile)
+        sendMessage("共有${rawFile.size}份\nZip下载链接：\n${COSManger.getTemporaryUrl(filePath)}\n请尽快下载，5分种后将删除该文件")
+        launch {
+          delay(TimeUnit.MILLISECONDS.convert(5, TimeUnit.MINUTES))
+          COSManger.delete(filePath)
+        }.collect()
+      }
+    }
+    zipFile.delete()
+    if (!isForce) {
+      // 不强制删除时直接删除原图片
+      getRootFile().deleteRecursively()
     }
   }
   

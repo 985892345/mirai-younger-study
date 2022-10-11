@@ -1,14 +1,15 @@
 package com.ndhzs
 
 import com.ndhzs.hotfix.HotfixKotlinPlugin
-import com.ndhzs.hotfix.handler.suffix.jar.JarEntrance
-import com.ndhzs.hotfix.handler.suffix.jar.JarHotfixUser
-import com.ndhzs.hotfix.handler.suffix.jar.getEntrance
+import com.ndhzs.hotfix.suffix.jar.JarEntrance
+import com.ndhzs.hotfix.suffix.jar.JarHotfixUser
+import com.ndhzs.hotfix.suffix.jar.getEntrance
 import net.mamoe.mirai.console.command.CommandManager.INSTANCE.register
 import net.mamoe.mirai.console.command.CommandManager.INSTANCE.unregister
 import net.mamoe.mirai.console.command.CommandSender
 import net.mamoe.mirai.console.command.CompositeCommand
 import net.mamoe.mirai.console.plugin.jvm.JvmPluginDescription
+import net.mamoe.mirai.console.util.ConsoleExperimentalApi
 
 /**
  * 催大家交青年大学习的 mirai 插件
@@ -38,6 +39,7 @@ object MiraiYouthCollegeStudy : HotfixKotlinPlugin(
   }
 }
 
+@OptIn(ConsoleExperimentalApi::class)
 object StudyCommand : CompositeCommand(
   MiraiYouthCollegeStudy, "younger",
   description = "青年大学习指令"
@@ -91,9 +93,9 @@ object StudyCommand : CompositeCommand(
    */
   @Description("下载所有截图")
   @SubCommand
-  suspend fun CommandSender.download() {
+  suspend fun CommandSender.download(@Name("是否强制下载") isForce: Boolean = false) {
     getStudy {
-      downloadZip()
+      downloadZip(isForce)
     }
   }
   
