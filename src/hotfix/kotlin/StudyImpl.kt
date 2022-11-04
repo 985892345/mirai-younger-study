@@ -2,7 +2,7 @@ import com.ndhzs.IStudy
 import com.ndhzs.MiraiYouthCollegeStudy.reload
 import com.ndhzs.MiraiYouthCollegeStudy.save
 import com.ndhzs.hotfix.HotfixKotlinPlugin
-import cos.COSManger
+import com.ndhzs.hotfix.comand.HotfixCommandSender
 import kotlinx.coroutines.*
 import net.mamoe.mirai.Bot
 import net.mamoe.mirai.console.MiraiConsole
@@ -30,7 +30,6 @@ import java.nio.file.Files
 import java.nio.file.StandardOpenOption
 import java.text.SimpleDateFormat
 import java.util.*
-import java.util.concurrent.TimeUnit
 import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
 import kotlin.random.Random
@@ -38,16 +37,10 @@ import kotlin.random.Random
 @Suppress("SuspendFunctionOnCoroutineScope")
 class StudyImpl : IStudy {
   
-  private val jobList = arrayListOf<Job>()
-  
-  private fun Job.collect(): Job {
-    jobList.add(this)
-    return this
-  }
-  
   private val group: Group?
     get() = Bot.getInstanceOrNull(Bot_id)?.getGroup(Group_id)
   
+  // 保存截图 zip 的群聊
   private val managerGroup: Group?
     get() = Bot.getInstanceOrNull(Bot_id)?.getGroup(ManagerGroup_id)
   
@@ -63,7 +56,7 @@ class StudyImpl : IStudy {
       .apply { mkdirs() }
   }
   
-  override suspend fun CommandSender.onFixLoad(plugin: HotfixKotlinPlugin) {
+  override suspend fun HotfixCommandSender.onFixLoad(plugin: HotfixKotlinPlugin) {
     Data.reload()
     sendMessage("Younger-Study 加载成功")
     launch {
@@ -79,7 +72,7 @@ class StudyImpl : IStudy {
           it.value.isSent = false
         }
       }
-    }.collect()
+    }
     globalEventChannel()
       .filter { event ->
         event is GroupTempMessageEvent
@@ -128,20 +121,12 @@ class StudyImpl : IStudy {
             }
           }
         }
-      }.collect()
+      }
   }
   
-  override suspend fun CommandSender.onFixUnload(plugin: HotfixKotlinPlugin): Boolean {
+  override suspend fun HotfixCommandSender.onFixUnload(plugin: HotfixKotlinPlugin): Boolean {
     Data.save()
-    COSManger.shutDown()
     sendMessage("Younger-Study 卸载成功")
-    jobList.forEach {
-      if (it is CompletableJob) {
-        it.complete()
-      } else {
-        it.cancel()
-      }
-    }
     return true
   }
   
@@ -221,7 +206,7 @@ class StudyImpl : IStudy {
     val calendar = Calendar.getInstance()
     val hour = calendar.get(Calendar.HOUR_OF_DAY)
     val minute = calendar.get(Calendar.MINUTE)
-    if (hour * 60 + minute !in 8 * 60..23 * 60 + 10) {
+    if (hour * 60 + minute !in 8 * 60..22 * 60 + 20) {
       sendMessage("该时段不能通知！")
       return
     }
@@ -258,7 +243,7 @@ class StudyImpl : IStudy {
           }
         }
         mInformJob = null
-      }.collect()
+      }
       
       val joiner = StringJoiner("\n")
       joiner.add("已提醒以下人发截图：共${informMap.size}人")
@@ -309,13 +294,7 @@ class StudyImpl : IStudy {
         }
         sendMessage("文件上传成功\n文件名：${zipFile.name.substringBeforeLast(".")}\n请在群文件中查看")
       } else {
-        sendMessage("未找到文件群，将使用上传 COS 的备用方案")
-        val filePath = COSManger.upload(zipFile)
-        sendMessage("共有${rawFile.size}份\nZip下载链接：\n${COSManger.getTemporaryUrl(filePath)}\n请尽快下载，5分种后将删除该文件")
-        launch {
-          delay(TimeUnit.MILLISECONDS.convert(5, TimeUnit.MINUTES))
-          COSManger.delete(filePath)
-        }.collect()
+        sendMessage("未找到文件群")
       }
     }
     zipFile.delete()

@@ -3,7 +3,7 @@ plugins {
   kotlin("jvm") version kotlinVersion
   kotlin("plugin.serialization") version kotlinVersion
   id("net.mamoe.mirai-console") version "2.12.3"
-  id("io.github.985892345.mirai-hotfix") version "2.0.0"
+  id("io.github.985892345.mirai-hotfix") version "2.1.0"
 }
 
 group = "com.ndhzs"
@@ -22,8 +22,7 @@ dependencies {
 hotfix {
   // 这里用于设置自定义源集并引入依赖
   createHotfix("hotfix") {
-    implementation("com.google.code.gson:gson:2.9.1")
-    implementation("com.qcloud:cos_api:5.6.73")
+    implementation("com.google.code.gson:gson:2.10")
   }
 }
 

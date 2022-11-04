@@ -16,7 +16,7 @@ import net.mamoe.mirai.console.util.ConsoleExperimentalApi
  *
  * 注意：
  * - 请把同学都添加为好友，不然临时聊天很容易被封号
- * - 由于无法直接给好友传文件，所以只能先上传压缩包到 COS 对象存储后给出下载地址
+ * - 由于无法直接给好友传文件，只能通过上传群文件的方法来分享文件
  */
 object MiraiYouthCollegeStudy : HotfixKotlinPlugin(
   JvmPluginDescription(
